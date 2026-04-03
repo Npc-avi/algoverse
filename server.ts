@@ -6,22 +6,25 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-async function startServer() {
-  const app = express();
-  const PORT = 3000;
+const app = express();
+const PORT = 3000;
 
-  app.use(express.json());
+app.use(express.json());
 
-  const groq = new Groq({
-    apiKey: process.env.GROQ_API_KEY,
-  });
+// API route for the Groq Digital Marketing Assistant
+app.post("/api/chat", async (req, res) => {
+  try {
+    const apiKey = process.env.GROQ_API_KEY;
+    
+    if (!apiKey) {
+      console.error("GROQ_API_KEY is missing from environment variables");
+      return res.status(500).json({ error: "GROQ_API_KEY is not configured on the server." });
+    }
 
-  // API route for the Groq Digital Marketing Assistant
-  app.post("/api/chat", async (req, res) => {
-    try {
-      const { message, history } = req.body;
+    const groq = new Groq({ apiKey });
+    const { message, history } = req.body;
 
-      const systemInstruction = `You are a digital content assistant that only follows these instructions and replies accordingly to the prompt and also talk like an assistant or friend and not just like a bot usage of emoji is allowed.
+    const systemInstruction = `You are a digital content assistant that only follows these instructions and replies accordingly to the prompt and also talk like an assistant or friend and not just like a bot usage of emoji is allowed.
 **CRITICAL: Use Markdown for formatting. Use double newlines between paragraphs, bullet points for lists, and bold text for emphasis to ensure high readability.**
 
 you have these power when asked about any ideas
@@ -58,28 +61,38 @@ o predictions, and recommendations
 
 Replace [XX] with your predicted percentage (0-100). Do not use ranges like "80-90%", use a single number.`;
 
-      const messages = [
-        { role: "system", content: systemInstruction },
-        ...history,
-        { role: "user", content: message },
-      ];
+    const messages = [
+      { role: "system", content: systemInstruction },
+      ...history,
+      { role: "user", content: message },
+    ];
 
-      const completion = await groq.chat.completions.create({
-        model: "llama-3.1-8b-instant",
-        messages: messages as any,
-        temperature: 1,
-        max_completion_tokens: 1024,
-        top_p: 1,
-        stream: false, // Set to false for simple response, can be true for streaming
-      });
+    const completion = await groq.chat.completions.create({
+      model: "llama-3.1-8b-instant",
+      messages: messages as any,
+      temperature: 1,
+      max_completion_tokens: 1024,
+      top_p: 1,
+      stream: false,
+    });
 
-      res.json({ content: completion.choices[0].message.content });
-    } catch (error) {
-      console.error("Groq API error:", error);
-      res.status(500).json({ error: "Failed to get response from Groq assistant" });
-    }
+    res.json({ content: completion.choices[0].message.content });
+  } catch (error) {
+    console.error("Groq API error:", error);
+    res.status(500).json({ error: "Failed to get response from Groq assistant" });
+  }
+});
+
+// Health check route
+app.get("/api/health", (req, res) => {
+  res.json({ 
+    status: "ok", 
+    hasApiKey: !!process.env.GROQ_API_KEY,
+    env: process.env.NODE_ENV 
   });
+});
 
+async function startServer() {
   // Vite middleware for development
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({
@@ -95,9 +108,13 @@ Replace [XX] with your predicted percentage (0-100). Do not use ranges like "80-
     });
   }
 
-  app.listen(PORT, "0.0.0.0", () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-  });
+  if (process.env.NODE_ENV !== "production") {
+    app.listen(PORT, "0.0.0.0", () => {
+      console.log(`Server running on http://localhost:${PORT}`);
+    });
+  }
 }
 
 startServer();
+
+export default app;

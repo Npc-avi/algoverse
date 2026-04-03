@@ -65,9 +65,12 @@ export default function ChatBot({ mode = 'floating', apiKey, platform, user, set
         }),
       });
 
-      if (!response.ok) throw new Error('Failed to get response');
-
       const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to get response');
+      }
+
       setMessages(prev => [...prev, { role: 'assistant', content: data.content }]);
       
       if (onResponse) {
@@ -77,7 +80,7 @@ export default function ChatBot({ mode = 'floating', apiKey, platform, user, set
       console.error('Chat error:', error);
       setMessages(prev => [...prev, { 
         role: 'assistant', 
-        content: "Sorry, I'm having trouble connecting to my brain right now. Please make sure the GROQ_API_KEY is set correctly in the .env file." 
+        content: `Error: ${error.message}. Please ensure GROQ_API_KEY is correctly set in your Vercel Environment Variables.` 
       }]);
     } finally {
       setIsLoading(false);
